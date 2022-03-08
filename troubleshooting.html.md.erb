@@ -1,0 +1,308 @@
+---
+title: Troubleshooting Windows Diego Cells
+owner: Greenhouse
+---
+
+This topic describes how to troubleshoot Windows Diego Cells deployed by
+<%= vars.windows_runtime_full %> (<%= vars.windows_runtime_abbr %>).
+
+## <a id='issues'></a> Installation Issues
+
+This section describes issues that may occur during the installation process.
+
+### <a id='missing-certs-winfs-issues'></a> Missing Local Certificates for Windows File System Injector
+
+**Symptom**
+
+You run the `winfs-injector` and see the following error about certificates:
+
+```
+Get https://auth.docker.io/token?service=registry.docker.io&
+scope=repository:cloudfoundry/windows2016fs:pull: x509:
+failed to load system roots and no roots provided
+```
+
+**Explanation**
+
+Local certificates are needed to communicate with Docker Hub.
+
+**Solution**
+
+Install the necessary certificates on your local machine. On Ubuntu, you can install certificates
+with the `ca-certificates` package.
+
+### <a id='outdated-version-winfs-issues'></a> Outdated Version for Windows File System Injector
+
+**Symptom**
+
+You run the `winfs-injector` and see the following error about a missing file or directory:
+
+```
+open ...windows2016fs-release/VERSION: no such file or directory
+```
+
+**Explanation**
+
+You are using an outdated version of the `winfs-injector`.
+
+**Solution**
+
+From the [<%= vars.windows_runtime_full %>](https://network.pivotal.io/products/pas-windows) page
+on <%= vars.product_network %>, download the recommended version of **File System Injector tool**
+for the tile.
+
+### <a id='no-os'></a> Missing Container Image
+
+**Symptom**
+
+You click the **+** icon in <%= vars.platform_name %> to add the <%= vars.windows_runtime_abbr %>
+tile to the Installation Dashboard and see the following error:
+
+<%= image_tag('error-invalid-release-uninjected-tile.png') %>
+
+**Explanation**
+
+The product file that you are trying to upload does not contain the Windows Server container base
+image.
+
+**Solution**
+
+1. Delete the product file listing from <%= vars.platform_name %> by clicking its trash can icon
+  under **Import a Product**.
+
+1. Follow the <%= vars.windows_runtime_abbr %> installation instructions to run the
+`winfs-injector` tool locally on the product file. This step adds the Windows Server container base image to the product file, requires internet access, and can take up to 20 minutes. For more
+information, see [Install the Tile](./installing.html#install) in _Installing and Configuring
+<%= vars.windows_runtime_abbr %>_.
+
+1. Click **Import a Product** to upload the injected product file.
+
+1. Click the **+** icon next to the product listing to add the <%= vars.windows_runtime_abbr %>
+tile to the Installation Dashboard.
+
+## <a id='issues'></a> Upgrade Issues
+
+This section describes issues that may occur during the upgrade process.
+
+### <a id='failure-create-containers'></a> Failure to Create Containers When Upgrading with Shared Microsoft Base Image
+
+**Symptom**
+
+The pre-start script for the `windowsfs` job fails, and the upgrade fails with the following output:
+
+```
+Task 308031 | 13:47:04 | Preparing deployment: Preparing deployment (00:00:03)
+
+Task 308031 | 13:47:11 | Preparing package compilation: Finding packages to compile (00:00:00)
+
+Task 308031 | 13:47:21 | Updating instance windows_diego_cell: windows_diego_cell/44c5841f-7580-4e9c-9856-89fcbe08ab0d (2) (canary) (00:00:35)
+
+L Error: Action Failed get_task: Task 59ba76d1-14c5-4d7b-681c-08b9ec4bd64d result: 1 of 10 pre-start scripts failed. Failed Jobs: windows1803fs. Successful Jobs: set_kms_host, groot, loggregator_agent_windows, bosh-dns-windows, rep_windows, winc-network-1803, set_password, enable_ssh, enable_rdp.
+
+Task 308031 | 13:47:56 | Error: Action Failed get_task: Task 59ba76d1-14c5-4d7b-681c-08b9ec4bd64d result: 1 of 10 pre-start scripts failed. Failed Jobs: windows1803fs. Successful Jobs: set_kms_host, groot, loggregator_agent_windows, bosh-dns-windows, rep_windows, winc-network-1803, set_password, enable_ssh, enable_rdp.
+```
+
+Otherwise, the post-start script for the `rep_windows` job fails, and the upgrade fails with the
+following output:
+
+```
+Task 8192 | 21:12:30 | Updating instance windows2019-cell: windows2019-cell/bd6d70b9-ed1f-412f-9d49-8045627f4ab3 (0) (canary) (00:17:24)
+                     L Error: Action Failed get_task: Task a9555020-1a3b-40c7-677c-d6fc392ce135 result: 1 of 3 post-start scripts failed. Failed Jobs: rep_windows. Successful Jobs: route_emitter_windows, bosh-dns-windows.
+Task 8192 | 21:29:55 | Error: Action Failed get_task: Task a9555020-1a3b-40c7-677c-d6fc392ce135 result: 1 of 3 post-start scripts failed. Failed Jobs: rep_windows. Successful Jobs: route_emitter_windows, bosh-dns-windows.
+```
+
+**Explanation**
+
+When upgrading between versions of Windows rootfs that have a shared Microsoft base layer,
+<%= vars.windows_runtime_abbr %> may fail to create containers.
+
+**Solution**
+
+For available workarounds, see 
+[Failure to create containers when upgrading with shared Microsoft base
+image](https://community.pivotal.io/s/article/knowledge-base-failure-to-create-containers-when-upgrading-with-shared-microsoft-base-image) in the Knowledge Base.
+
+## <a id='logs'></a> Forward Windows Diego Cell Logs
+
+You can use Windows Diego Cell logs to troubleshoot Windows Diego Cells. Windows Diego Cells
+generate the following types of logs:
+
+* **BOSH job logs**, such as `rep_windows` and `consul_agent_windows`. These logs stream to the
+syslog server configured in the **System Logging** pane of the <%= vars.windows_runtime_abbr %>
+tile, along with other <%= vars.platform_name %> component logs. The names of these BOSH job logs
+correspond to the names of the logs emitted by Linux Diego Cells.
+
+* **Windows event logs**. These logs stream to the syslog server configured in the
+**System Logging** pane of the <%= vars.windows_runtime_abbr %> tile.
+
+You can forward BOSH job logs and Windows Event logs to an external syslog server in the following
+ways:
+
+* Configure a BOSH add-on to forward BOSH job logs. For more information, see the BOSH jobs logs
+step in [Install the Tile](./installing.html#install) in _Installing and Configuring <%= vars.windows_runtime_abbr %>_.
+
+* Configure <%= vars.windows_runtime_abbr %> to forward Windows event logs. For more information,
+see [Forward Windows Event Logs to a Syslog Server](#syslog).
+
+You can download the forwarded BOSH job logs and Window event logs in the
+<%= vars.windows_runtime_abbr %> tile. For more information, see
+[Download Diego Cell Logs](#download).
+
+### <a id='syslog'></a> Forward Windows Event Logs to a Syslog Server
+
+To forward Windows event logs to an external syslog server:
+
+1. Navigate to the <%= vars.platform_name %> Installation Dashboard.
+
+1. Click the <%= vars.windows_runtime_abbr %> tile.
+
+1. Select **System Logging**.
+
+    <%= image_tag("win-syslog-config.png") %>
+
+1. Under **Enable syslog for VM logs?**, select **Enable**.
+
+1. Under **Address**, enter the hostname or IP address of your syslog server.
+
+1. Under **Port**, enter the port of your syslog server. The default port is `514`.
+  <p class="note"><strong>Note:</strong> The host must be reachable from the <%= vars.app_runtime_abbr %> network. Ensure that your syslog server listens on external interfaces.</p>
+
+1. Under **Protocol**, select the transport protocol to use when forwarding logs.
+
+1. Enable the **Enable system metrics** checkbox. For a list of the VM metrics that the System Metric Agent emits, see
+[VM Metrics](https://github.com/cloudfoundry/system-metrics-release/blob/develop/docs/system-metrics-agent.md#vm-metrics) in the System Metrics repository on GitHub.
+
+1. Click **Save**.
+
+### <a id='download'></a> Download Windows Diego Cell Logs
+
+To download Windows Diego Cell logs:
+
+1. Navigate to the <%= vars.platform_name %> Installation Dashboard.
+
+1. Click the <%= vars.windows_runtime_abbr %> tile.
+
+1. Click the **Status** tab.
+
+1. Under the **Logs** column, click the download icon for the Windows Diego Cell for which you want to retrieve logs.
+
+1. Click the **Logs** tab.
+
+1. When the logs are ready, click the filename to download them.
+
+1. Unzip the file to examine the contents. Each component on the Diego Cell has its own logs directory:
+    * `/consul_agent_windows/`
+    * `/garden-windows/`
+    * `/metron_agent_windows/`
+    * `/rep_windows/`
+
+## <a id='compilation_vms'></a> Troubleshoot Windows Compilation VMs
+
+BOSH automatically deletes a compilation VM after the compilation VM fails. 
+In a vSphere environment, use one of the procedures below to troubleshoot your 
+Windows stemcell v2019.7 and later compilation VM issues:
+
+* [Troubleshoot a Slowly-Deleted Windows Compilation VM](#compilation-vms-slow)
+* [Troubleshoot a Quickly-Deleted Windows Compilation VM](#compilation-vms-quick)
+
+### <a name='compilation-vms-slow'></a> Troubleshoot a Slowly-Deleted Windows Compilation VM
+
+The easiest method to troubleshoot a Windows compilation VM is to 
+`bosh ssh` to the VM before BOSH deletes it. 
+
+To troubleshoot a compilation VM from an `ssh` session:
+
+1. Open the vSphere UI.  
+
+1. Open two different BOSH CLI terminal sessions.  
+1. Open <%= vars.ops_manager %>.  
+1. Enable the two following settings in <%= vars.ops_manager %>:
+    * Select **Keep Unreachable Director VMs** from 
+    **BOSH Director** tile > **Director config**. 
+    * Select **enable BOSH-native SSH support on all VMs** from 
+    **<%= vars.windows_runtime_abbr %>** tile > **VM options**. 
+1. Click **Apply Changes** against the <%= vars.windows_runtime_abbr %> tile.
+1. From the first BOSH CLI terminal, monitor the BOSH task:  
+
+    ```
+    watch -n 5 "bosh -d TAS-WINDOWS-DEPLOYMENT is --details | grep compilation"
+    ```
+
+    Where `TAS-WINDOWS-DEPLOYMENT` is the name of your <%= vars.windows_runtime_abbr %> deployment.
+
+1. Wait until the compilation VM CID is up.
+
+1. From the second BOSH CLI terminal, SSH to the Windows compilation VM:
+
+    ```
+    bosh -d TAS-WINDOWS-DEPLOYMENT ssh COMPILATION-NAME
+    ```
+    Where:
+    * `TAS-WINDOWS-DEPLOYMENT` is the name of your <%= vars.windows_runtime_abbr %> deployment.
+    * `COMPILATION-NAME` is the name of your  Windows compilation VM.  
+
+1. To prevent BOSH from deleting the compilation VM after the compilation VM fails, 
+search for the compilation VM CID in the vSphere UI and rename it.
+
+1. You can now troubleshoot within this session.  
+
+1. After troubleshooting, delete the VM manually.  
+
+### <a name='compilation-vms-quick'></a> Troubleshoot a Quickly-Deleted Windows Compilation VM
+
+In some situations, the Windows compilation VM might be deleted very quickly, 
+making it impossible to `bosh ssh` to the VM before BOSH deletes it. 
+
+To troubleshoot a quickly-deleted compilation VM:
+
+1. Download an Ubuntu desktop image from [Ubuntu Releases Xenial](http://releases.ubuntu.com/xenial/).
+
+1. Upload the Ubuntu desktop image into your vSphere datastore.
+
+1. Open the vSphere UI.  
+
+1. Open a BOSH CLI terminal session.  
+1. Open <%= vars.ops_manager %>.  
+1. Enable the two following settings in <%= vars.ops_manager %>:
+    * Select **Keep Unreachable Director VMs** from 
+    **BOSH Director** tile > **Director config**. 
+    * Select **enable BOSH-native SSH support on all VMs** from 
+    **<%= vars.windows_runtime_abbr %>** tile > **VM options**. 
+1. Click **Apply Changes** in <%= vars.ops_manager %>.
+
+1. From the BOSH CLI terminal, monitor the BOSH task:  
+
+    ```
+    watch -n 5 "bosh -d TAS-WINDOWS-DEPLOYMENT is --details | grep compilation"
+    ```
+
+    Where `TAS-WINDOWS-DEPLOYMENT` is the name of your <%= vars.windows_runtime_abbr %> deployment.
+
+1. Wait until the compilation VM CID is up.
+
+1. From the vSphere UI:
+    1. Locate the compilation VM CID in the vSphere UI.  
+    1. To prevent BOSH from deleting the compilation VM after the compilation VM fails, 
+    rename the compilation VM.
+    1. On the Windows compilation VM, go to **Edit settings** > **add a device CD/DVD drive** > 
+    **browse Datastore ISO file**, and select the Ubuntu desktop iso -> select **Connect at Power ON**.
+    1. Go to **Edit settings** -> **VM options** tab -> **Boot Options**.
+    1. Increase the **Boot Delay** to `10000 milliseconds`.
+    1. Select **Force BIOS Setup**.
+    1. Select **Start/Restart** to restart the VM. 
+
+1. On the BIOS setup screen, boot with the CD-ROM Drive.
+
+1. After Ubuntu desktop starts, select **try Ubuntu** and launch a terminal. 
+
+1. In the terminal, run:
+
+    ```
+    sudo fdisk -l
+    sudo mkdir /mnt/windows
+    sudo mount /dev/sda1 /mnt/windows
+    ```
+1. You can now troubleshoot within this session by 
+exploring the contents of the windows VM's file system within `/mnt/windows`
+
+1. After troubleshooting, delete the VM manually.

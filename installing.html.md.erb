@@ -1,0 +1,452 @@
+---
+title: Installing and Configuring TAS for VMs [Windows]
+owner: Windows
+---
+
+<% current_page.data.title = "Installing and Configuring " + vars.windows_runtime_abbr %>
+
+This topic describes how to install and configure the <%= vars.windows_runtime_full %> tile.
+
+
+## <a id='overview'></a> Overview
+
+The <%= vars.windows_runtime_abbr %> tile installs Windows Diego Cells in your <%= vars.platform_name %> deployment.
+
+The <%= vars.windows_runtime_abbr %> tile inherits settings from the <%= vars.app_runtime_full %> (<%= vars.app_runtime_abbr %>) tile and also includes additional configuration settings.
+
+To install, configure, and deploy <%= vars.windows_runtime_abbr %>:
+
+* In an environment with internet access:
+    1. Complete the prerequisites. See [Prerequisites](#prerequisites).
+    1. Download and install the <%= vars.windows_runtime_abbr %> tile. See [Install the Tile](#install).
+    1. Configure required settings for the tile. See [Configure the Tile](#config).
+    1. Configure resources for the tile. See [Configure Tile Resources](#resources).
+    1. Upload the Windows stemcell to the tile. See [Upload the Stemcell](#stemcells).
+    1. Deploy the tile. See [Deploy the Tile](#deploy).
+
+* In an air-gapped environment, complete the steps in
+[Install and Configure <%= vars.windows_runtime_abbr %> in an Air-Gapped Environment](#air-gapped) below.
+
+## <a id='prerequisites'></a> Prerequisites
+
+Before you install and configure the <%= vars.windows_runtime_abbr %> tile, ensure that you meet the requirements to use the **Windows FS Injector** tool. For more information, see [Windows FS Injector Prerequisites](#prerequisite-injector).
+
+### <a id='prerequisite-injector'></a> Windows FS Injector Prerequisites
+
+You use the **Windows FS Injector** tool to install the <%= vars.windows_runtime_abbr %> tile. The **Windows FS Injector** tool requires:
+
+* The `git` and `tar` executables must be in your `%PATH%`. If `git` and `tar` are not in your `%PATH%`, either add your `git` and `tar` executable locations to your existing `%PATH%` configuration, or copy the `git.exe` and `tar.exe` executables to a directory in your `%PATH%`.
+
+*  Your installation environment must allow the **Windows FS Injector** tool access to all of the following URLs:
+  * [network.pivotal.io](https://network.pivotal.io), for downloading the tile and injector.
+  * [s3.amazonaws.com](https://s3.amazonaws.com/).
+  * [auth.docker.io](https://auth.docker.io/).
+  * [registry.hub.docker.com](https://registry.hub.docker.com/).
+  * [https://production.cloudflare.docker.com](https://production.cloudflare.docker.com/).
+  * [go.microsoft.com](https://go.microsoft.com/).
+  * [https://winlayers.cdn.mscr.io](https://winlayers.cdn.mscr.io/).
+  * [mcr.microsoft.com](https://mcr.microsoft.com).
+  * [*.msecnd.net](https://msecnd.net), or any domain within the Microsoft Windows Azure Content Delivery Network.
+  For more information about the Windows Azure Content Delivery Network, see [Introducing the Windows Azure Content Delivery Network](https://azure.microsoft.com/en-us/blog/introducing-the-windows-azure-content-delivery-network/) in the Microsoft Azure documentation.
+  <p class="note"><strong>Note:</strong> To ensure the authenticity of Microsoft container images, Microsoft does not permit the distribution of its base images. This includes Microsoft container images consumed through Docker Hub, which are actually delivered by an Microsoft CDN endpoint.</p>
+
+## <a id='install'></a> Install the Tile
+
+To install the <%= vars.windows_runtime_abbr %> tile:
+    <%# After adding or removing a step here be sure to change the step number
+  for step 4 referenced below in the air-gapped environment section.  %>
+
+1. Go to the [<%= vars.windows_runtime_full %>](https://network.pivotal.io/products/pas-windows)
+   page on <%= vars.product_network %>.
+    <%# After adding or removing a step here be sure to change the step number
+  for step 4 referenced below in the air-gapped environment section.  %>
+
+1. Download the **<%= vars.windows_runtime_full %>** product file.
+    <%# After adding or removing a step here be sure to change the step number
+  for step 4 referenced below in the air-gapped environment section.  %>
+
+1. Download the **Windows FS Injector** tool for your workstation OS. The Injector tool, `winfs-injector`, is an executable binary that adds the Windows Server container base image into the product file. This step requires internet access and can take up to 20 minutes.
+  <p class="note"><strong>Note:</strong> You need the <code>git</code> and <code>tar</code> executables in your <code>%PATH%</code> to run <code>winfs-injector.exe</code>. For example, copy <code>git.exe</code> and <code>tar.exe</code> to a directory in your <code>%PATH%</code>.</p>
+    <%# After adding or removing a step here be sure to change the step number
+  for step 4 referenced below in the air-gapped environment section.  %>
+
+1. Add the Windows Server container base image to the product file:
+
+    ```
+    winfs-injector ^
+      --input-tile PASW-DOWNLOAD-PATH ^
+      --output-tile PASW-IMPORTABLE-PATH
+    ```
+    Where:
+    * `PASW-DOWNLOAD-PATH` is the path and filename to the <%= vars.windows_runtime_abbr %> product file you downloaded.
+    * `PASW-IMPORTABLE-PATH` is the desired output path for the importable product file.
+<br>
+    For example:
+    <pre class="terminal">
+    C:\Users\admin\> winfs-injector ^
+    --input-tile c:\temp\pas-windows-2.9.0-build.1.pivotal ^
+    --output-tile c:\temp\pas-windows-2.9.0-build.1-INJECTED.pivotal
+    </pre>
+
+    This step take up to 20 minutes to complete.
+
+1. To enable forwarding BOSH job logs to an external syslog server, add the following BOSH add-on to a `runtime_config` YAML file:
+
+    ```
+    releases:
+    - name: windows-syslog
+      version: latest
+
+    addons:
+    - name: windows-syslog
+      include:
+        stemcell:
+        - os: ((stemcell OS e.g., windows2019))
+      jobs:
+      - name: syslog_forwarder_windows
+        properties:
+          syslog:
+            address: ((IP address of the syslog server))
+            port: ((Port of the syslog server))
+            transport: ((tcp or udp))
+            tls_enabled: true
+            ca_cert: ((TLS CA certificate of the syslog server))
+        release: windows-syslog
+    ```
+    For more information about BOSH add-ons, see [Addons Block](https://bosh.io/docs/runtime-config/#addons) in _Director Runtime Config_ in the BOSH documentation.
+
+1. Navigate to the Ops Manager Installation Dashboard and click **Import a Product**.
+
+1. To add the <%= vars.windows_runtime_abbr %> tile to the **Import a Product** product list,
+   select the importable `PASW-IMPORTABLE-PATH` file on your workstation.
+
+1. To add the <%= vars.windows_runtime_abbr %> tile to your staging area, click **+** under the **<%= vars.windows_runtime_full %>** product listing.
+
+## <a id='config'></a> Configure the Tile
+
+The following sections describe how to configure the settings for the <%= vars.windows_runtime_abbr %> tile.
+
+### <a id='config-azs-networks'></a> Assign Availability Zones and Networks
+
+In **Assign AZ and Networks**, you assign jobs to your Availability Zones (AZs) and networks.
+
+To configure AZs and networks:
+
+1. Click the <%= vars.windows_runtime_abbr %> tile.
+
+1. Select **Assign AZs and Networks** or **Assign Networks**. The name of the pane varies depending on your IaaS.
+
+1. Select the first AZ under **Place singleton jobs**. Ops Manager runs any job with a single instance in this AZ.
+
+1. Select all AZs under **Balance other jobs**. Ops Manager balances instances of jobs with more than one instance across the AZs that you specify.
+  <p class='note'><strong>Note:</strong> For production deployments, VMware recommends at least three AZs for a highly available installation.</p>
+
+1. From the **Network** dropdown, choose the runtime network that you created when configuring the BOSH Director tile.
+
+1. Click **Save**.
+
+### <a id='config-vms'></a> Configure VMs
+
+In **VM Options**, you configure settings for accessing your VMs.
+
+To configure VM access:
+
+1. Select **VM Options**.
+
+1. Select one of the following for **Manage administrator password**:
+  * To randomize the admin password, select **Use random password**. If you select this option, the admin password is not retrievable by an operator. This is the default selection.
+  * To set the same admin password for every Windows Diego Cell, select **Set the password** and enter a password in **Password**. If you select this option, this password can be used to access any Windows Diego Cell.
+
+1. (Optional) To start the Microsoft beta port of the OpenSSH daemon on port 22 on all VMs, select the **Enable BOSH-native SSH support on all VMs (beta)** checkbox. If you select this option, users can SSH into Windows VMs with the `bosh ssh` command and enter a CMD terminal as an admin user. They can then run `powershell.exe` to start a PowerShell session.
+
+1. (Optional) To configure a Key Management Service (KMS) that your volume-licensed Windows Diego Cell can register with:
+    1. Under **Key Management Service**, select **Enable**.
+    1. For the **Host** field, enter the KMS hostname.
+    1. For the **Port** field, enter the port number. The default port number is 1688.
+
+1. Click **Save**.
+
+### <a id='config-smoke-tests'></a> Configure Smoke Tests
+
+In **Smoke Tests**, you specify the org and space where smoke tests are run.
+
+In the org and space that you specify, the Smoke Test errand pushes an app to the org.
+The app runs basic functionality tests against your <%= vars.windows_runtime_abbr %> deployment
+after an installation or update.
+
+The Smoke Test errand is on by default. You can turn off the Smoke Test errand in the **Errands** pane. For more information, see [Configure Errands](#config-errands).
+
+To configure smoke tests:
+
+1. Select **Smoke Tests**.
+
+1. If you have a shared apps domain, select **A temporary space within the system org**, which creates a temporary space within the system org for running smoke tests and deletes the space afterwards. Otherwise, select **A specified org and space** and complete these fields to configure where <%= vars.windows_runtime_abbr %> pushes an app to run smoke tests:
+    * For **Org**, enter the org <%= vars.windows_runtime_abbr %> should use when pushing an app to run smoke tests.
+    * For **Space**, enter the space <%= vars.windows_runtime_abbr %> should use when pushing an app to run smoke tests.
+    * For **Domain**, enter the domain <%= vars.windows_runtime_abbr %> should use when pushing an app to run smoke tests.
+
+### <a id='config-advanced-features'></a> Configure Advanced Features
+
+**Advanced Features** includes new functionality that might have certain constraints.
+  Although these features are fully supported,
+  VMware recommends caution when using them in production environments.
+
+The following sections describe how to configure these advanced features.
+
+#### <a id='config-memory-disk'></a> Diego Cell Memory and Disk Overcommit
+
+If your apps do not use the full allocation of disk space and memory set in **Resource Config**, you might want use this feature. These fields control the amount to overcommit disk and memory resources to each host VM.
+
+For example, you might want to use the overcommit if your apps use a small amount of disk and memory capacity compared to the amounts set in the **Resource Config** settings for **Windows Diego Cell**.
+
+<p class="note"><strong>Note:</strong> Due to the risk of app failure and the deployment-specific nature of disk and memory use, VMware has no recommendation for how much, if any, memory or disk space to overcommit.</p>
+
+To enable overcommit:
+
+1. Select **Advanced Features**.
+
+1. Enter in MB the total desired amount of Diego Cell memory in the **Diego Cell memory capacity** field. See the **Diego Cell** row in **Resource Config** for the current Diego Cell memory capacity settings that this field overrides.
+
+1. Enter in MB the total desired amount of Diego Cell disk capacity in the **Diego Cell disk capacity** field. See the **Diego Cell** row in **Resource Config** for the current Diego Cell disk capacity settings that this field overrides.
+
+1. Click **Save**.
+
+<p class="note"><strong>Note:</strong> Entries made to each of these two fields set the total amount of resources allocated, not the overage.</p>
+
+#### <a id='enable-route-integrity'></a> TLS Connections from the Gorouter to Apps (Beta)
+
+You can choose the method the Gorouter uses to verify app identity. Verifying app identity using TLS or mutual TLS (mTLS) enables encryption between the Gorouter and app containers and guards against misrouting during control plane failures. This feature is disabled by default.
+
+For more information about Gorouter route consistency modes, see [Preventing Misrouting](../concepts/http-routing.html#consistency) in _HTTP Routing_.
+
+To configure app identity verification:
+
+1. Select **Advanced Features**.
+
+1. Under **TLS connections from the Gorouter to apps (beta)**, select one of the
+following options:
+      * **Disable route integrity and mutual TLS**: Disables app identity
+      verification and mTLS.
+      * **The Gorouter uses TLS to verify app identity**: Enables the Gorouter
+      to verify app identity using TLS. This is the default option.
+      * **The Gorouter and apps use mutual TLS to verify each other's identity**:
+      Enables the Gorouter and your apps to verify each other's identity using
+      TLS. Before you enable this option, be aware of the following:
+          * This option disables TCP routing because app containers accept incoming
+      communication only from the Gorouter.
+          * If you enable mTLS in the <%= vars.windows_runtime_abbr %> tile, you
+          must also enable mTLS in the <strong>App Containers</strong> pane of the
+          <%= vars.app_runtime_abbr %> tile.
+          * You need v2.3 or later of both <%= vars.app_runtime_abbr %> and
+          Isolation Segment. The Gorouter and Diego Cell components in
+          <%= vars.platform_old %> v2.2 and earlier do not support mTLS handshakes.
+
+1. Click **Save**.
+
+### <a id='config-errands'></a> Configure Errands
+
+Errands are scripts that Ops Manager runs automatically when it installs or uninstalls a product,
+such as a new version of <%= vars.windows_runtime_abbr %>.
+There are two types of errands: _post-deploy errands_ run after the product is installed,
+and _pre-delete errands_ run before the product in uninstalled.
+
+By default, Ops Manager runs all errands.
+
+In **Errands**, you can change these run rules. For each errand, you can select **On** to run it each time Ops Manager installs or uninstalls a product, or **Off** to never run it.
+
+For more information about how Ops Manager manages errands, see [Managing Errands in Ops Manager](https://docs.pivotal.io/ops-manager/2-10/install/managing_errands.html).
+
+To configure errands:
+
+1. Select **Errands**.
+
+1. To ensure that you receive the most up-to-date HWC buildpack, set the **Install HWC Buildpack Errand** to **On**.
+
+1. To ensure that a smoke test is run against your <%= vars.windows_runtime_abbr %> installation, set the **Smoke Test Errand** to **On**.
+
+1. Click **Save**.
+
+<p class="note"><strong>Note:</strong> This beta feature checks only that the client certificate is signed by the expected CA using mTLS. It does not include SAN (Subject Alternative Name) checks of the presented client certificates.</p>
+
+### <a id='config-iso-segments'></a> (Optional) Configure Isolation Segments
+
+To deploy your <%= vars.windows_runtime_abbr %> app workloads to an isolation segment, select **App Containers** and follow the procedure in [Assign a Tile to an Isolation Segment](./isolation.html#assign-isolation) in _Windows Diego Cells in Isolation Segments_.
+
+### <a id='config-system-logging'></a> (Optional) Configure System Logging
+
+To configure Windows Diego Cells to send Windows event logs to an external syslog server, select **System Logging** and follow the procedure in [Forward Windows Event Logs to a Syslog Server](./troubleshooting.html#syslog) in _Troubleshooting Windows Diego Cells_.
+
+### <a id='dns-search-domains'></a> (Optional) Configure DNS Search Domains
+
+To configure DNS search domains for your app containers:
+
+1. Click the <%= vars.app_runtime_full %> tile in the **Installation Dashboard**.
+1. Select the **Networking** pane.
+1. In the **DNS search domains** field, enter DNS search domains as a comma-separated list.
+1. Click **Save**.
+
+## <a id='resources'></a> Configure Tile Resources
+
+In **Resource Config**, you must associate load balancers with the VMs in your deployment to enable traffic.
+
+To configure your tile resources:
+
+1. Select **Resource Config**.
+
+1. Use the dropdowns to configure **Windows Diego Cell**. The table below shows the recommended Windows Diego Cell disk size for your IaaS:
+  <table>
+    <tr>
+      <th>IaaS</th>
+      <th>Recommended Windows Diego Cell Disk Size</th>
+    </tr>
+    <tr>
+      <th>AWS</th>
+      <td>100&nbsp;GB</td>
+    </tr>
+    <tr>
+      <th>Azure</th>
+      <td>150&nbsp;GB</td>
+    </tr>
+    <tr>
+      <th>GCP</th>
+      <td>150&nbsp;GB</td>
+    </tr>
+    <tr>
+      <th>vSphere</th>
+      <td>100&nbsp;GB</td>
+    </tr>
+  </table>
+  <p class="note"><strong>Note:</strong> Windows stemcells in the v2019.x line support ephemeral disks.</p>
+
+1. Provision your **Master Compilation Job** with at least 100&nbsp;GB of disk space.
+
+1. Click **Save**.
+
+
+## <a id='stemcells'></a> Upload the Stemcell
+
+After configuring resources for the <%= vars.windows_runtime_abbr %> tile, you must upload the Windows stemcell to the tile.
+
+To upload the stemcell:
+
+1. In the <%= vars.windows_runtime_abbr %> tile, select **Stemcell Library**.
+
+1. Retrieve the stemcell that you downloaded or created in [Downloading or Creating a Windows Stemcell](./stemcells.html).
+
+1. Follow the procedure in [Importing and Managing Stemcells](https://docs.pivotal.io/ops-manager/2-10/opsguide/managing-stemcells.html) to upload the Windows stemcell to <%= vars.windows_runtime_abbr %>.
+
+<p class='note'><strong>Note:</strong> If you use vSphere, you must create your own stemcell.
+The default root disk size of Windows stemcells v2019.x line is 30&nbsp;GB.
+VMware recommends setting the root disk size of your Windows stemcell for vSphere to 30&nbsp;GB.
+For more information, see <a href="create-vsphere-stemcell-automatically.html">Creating a Windows Stemcell
+for vSphere Using stembuild</a>.
+</p>
+
+
+## <a id='deploy'></a> Deploy the Tile
+
+After uploading the Windows stemcell to the <%= vars.windows_runtime_abbr %> tile, you are ready to deploy the tile.
+
+To deploy the <%= vars.windows_runtime_abbr %> tile:
+
+1. Go to the Ops Manager Installation Dashboard.
+
+1. Click **Review Pending Changes**.
+
+1. Select the <%= vars.windows_runtime_abbr %> tile and review the changes. For more information, see [Reviewing Pending Product Changes](https://docs.pivotal.io/ops-manager/2-10/install/review-pending-changes.html).
+
+1. Click **Apply Changes**.
+
+
+## <a id='copy'></a> (Optional) Create More Tiles
+
+To run Windows Diego Cells in multiple isolation segments, you must create and configure additional <%= vars.windows_runtime_abbr %> tiles. For more information, see [Windows Diego Cells in Isolation Segments](./isolation.html).
+
+
+## <a id='air-gapped'></a> Install and Configure <%= vars.windows_runtime_abbr %> in an Air-Gapped Environment
+
+To install, configure, and deploy <%= vars.windows_runtime_abbr %> in an air-gapped environment:
+
+1. Complete the steps in [Prepare a Windows Rootfs Image in a Private Registry](#prepare-registry) below.
+
+1. Complete the steps in [Install the Tile](#install) above with the following exceptions:
+    * To add the Windows Server container base image to the product file,
+    replace step 4's internet-enabled `winfs-injector` command line
+    with the `winfs-injector` procedure in
+    [Add the Windows Server Container Base Image to the Product File](#add-win-image-air-gapped)
+    below.
+1. Configure required settings for the tile. See [Configure the Tile](#config) above.
+1. Configure resources for the tile. See [Configure Tile Resources](#resources) above.
+1. Upload the Windows stemcell to the tile. See [Upload the Stemcell](#stemcells) above.
+1. Deploy the tile. See [Deploy the Tile](#deploy) above.
+
+### <a id='prepare-registry'></a> Prepare a Windows Rootfs Image in a Private Registry
+
+To create a <%= vars.windows_runtime_abbr %> tile, a windows file-system container image is typically
+fetched from a Docker registry. An administrator can fetch the windows file-system image
+from either [cloudfoundry/windows2016fs](https://hub.docker.com/r/cloudfoundry/windows2016fs)
+the publicly hosted DockerHub repository, or a privately hosted container image registry.
+
+To prepare a windows file-system container image in a private registry:
+
+1. Create an accessible Windows Server 2019 machine in your environment.
+1. Install Docker on this Windows Server 2019 machine.
+1. Configure this Windows machine’s Docker daemon to allow non-redistributable artifacts
+to be pushed to your private registry.
+For information about configuring your Docker daemon, see
+[Allow push of nondistributable artifacts](https://docs.docker.com/engine/reference/commandline/dockerd/#allow-push-of-nondistributable-artifacts)
+in the Docker documentation.
+1. Open a command line on the Windows machine.
+1. To download the windows file-system container image, run the following command:
+
+    ```
+    docker pull cloudfoundry/windows2016fs:2019
+    ```
+1. To tag the Windows container image, run the following command:
+
+    ```
+    docker tag cloudfoundry/windows2016fs:2019  REGISTRY-ROOT/cloudfoundry/windows2016fs:2019
+    ```
+
+    Where `REGISTRY-ROOT` is your private registry’s URI.
+
+1. To upload the Windows Container image to your accessible private registry,
+run the following command:
+
+    ```
+    docker push IMAGE-URI
+    ```
+
+    Where `IMAGE-URI` is the URI to the Windows rootfs image in your private registry.
+    Your image URI should follow the pattern: `my.private.registry/cloudfoundry/windows2016fs:2019`.
+
+### <a id='add-win-image-air-gapped'></a> Add the Windows Server Container Base Image to the Product File
+
+To add the Windows Server container base image to the product file in an air-gapped environment,
+run the following:
+
+```
+winfs-injector ^
+  --input-tile PASW-DOWNLOAD-PATH ^
+  --output-tile PASW-IMPORTABLE-PATH ^
+  --registry PASW-REGISTRY-URI
+```
+
+Where:
+
+* `PASW-DOWNLOAD-PATH` is the path and filename to the PASW product file you downloaded.
+* `PASW-IMPORTABLE-PATH` is the desired output path for the importable product file.
+* `PASW-REGISTRY-URI` is the uri to the container registry hosting your cloudfoundry/windows2016fs image.
+<br>
+For example:
+<pre class="terminal">
+C:\Users\admin> winfs-injector ^
+--input-tile c:\temp\pas-windows-2.6.0-build.1.pivotal ^
+--output-tile c:\temp\pas-windows-2.6.0-build.1-INJECTED.pivotal ^
+--registry https<span>:</span>//my.registry.com
+</pre>
+<br>
+For information about troubleshooting `winfs-injector`,
+see [Missing Local Certificates for Windows File System Injector](./troubleshooting.html#missing-certs-winfs-issues)
+in _Troubleshooting Windows Diego Cells_.
+<br><br>
